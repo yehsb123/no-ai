@@ -6,13 +6,7 @@ Claude Code가 한국어 글을 쓸 때 AI 티를 빼도록 하는 플러그인�
 
 - Claude Code가 설치되어 있어야 합니다.
 - Python 3이 `python` 명령으로 실행되어야 합니다. Windows에서 Python을 설치할 때 첫 화면의 "Add python.exe to PATH"를 체크합니다.
-- 이 저장소는 비공개입니다. 저장소 관리자에게 GitHub 계정을 알려 초대를 받습니다.
-- 초대받은 계정으로 git이 로그인되어 있어야 합니다. 터미널(PowerShell)에서 아래 두 줄을 한 번 실행합니다. 두 번째 줄이 없으면 비공개 저장소를 받지 못합니다.
-
-```
-gh auth login
-gh auth setup-git
-```
+- git이 설치되어 있어야 합니다. 공개 저장소라 GitHub 로그인은 필요 없습니다.
 
 ## 설치
 
