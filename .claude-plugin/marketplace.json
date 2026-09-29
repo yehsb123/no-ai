@@ -1,0 +1,12 @@
+{
+  "name": "no-ai",
+  "owner": { "name": "yehsb123" },
+  "description": "한국어 글에서 AI 티를 빼는 규칙 플러그인",
+  "plugins": [
+    {
+      "name": "no-ai",
+      "source": "./",
+      "description": "한국어 글에서 AI 티를 빼는 규칙"
+    }
+  ]
+}
