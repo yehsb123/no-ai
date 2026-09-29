@@ -12,6 +12,7 @@
 import argparse
 import os
 import pathlib
+import html
 import re
 import sys
 
@@ -97,6 +98,25 @@ def prose_lines(text):
     return out
 
 
+def html_prose(text):
+    """HTML 을 줄 번호를 유지한 본문으로 바꾼다.
+
+    스크립트, 스타일, 주석은 글이 아니라 뺀다. 들여쓴 HTML 줄이 코드 블록으로
+    읽혀 통째로 빠지지 않게 줄 앞 공백을 없앤다. 제목 태그 줄은 제목 검사를
+    받도록 `# ` 을, 나머지 줄은 문단이 줄마다 끊기도록 `- ` 을 붙인다.
+    """
+    blank = lambda m: "\n" * m.group(0).count("\n")
+    text = re.sub(r"<(script|style)\b.*?</\1\s*>", blank, text, flags=re.S | re.I)
+    text = re.sub(r"<!--.*?-->", blank, text, flags=re.S)
+    out = []
+    for line in text.splitlines():
+        head = re.search(r"<h[1-6]\b", line, re.I)
+        t = html.unescape(re.sub(r"<[^>]*>", " ", line)).replace("\u00a0", " ")
+        t = re.sub(r"\s+", " ", t).strip()
+        out.append((("# " if head else "- ") + t) if t else "")
+    return "\n".join(out)
+
+
 def paragraphs(lines):
     """빈 줄, 제목, 표, 목록 항목으로 나눈 문단 (시작 줄 번호, 합친 글)."""
     paras, buf, start = [], [], None
@@ -158,6 +178,8 @@ def cmd_lint(text, name, domain, rules):
     if wrong:
         print(f"도메인 이름이 틀렸습니다: {', '.join(sorted(wrong))}. 가능한 값: {', '.join(sorted(known))}")
         return 2
+    if str(name).lower().endswith((".html", ".htm")):
+        text = html_prose(text)
     hits = run(text, domain, rules)
     for n, rid, title, got in hits:
         print(f"{name}:{n}  {rid} {title}  [{got}]")
