@@ -1,15 +1,69 @@
 """UserPromptSubmit 훅. NO-AI 가 켜져 있으면 매 요청에 적용하라는 한 줄을 넣는다.
 
 무엇을 하라는지는 적용.md 에만 적는다. 여기에 적으면 두 곳이 된다.
+
+규칙이 올라오면 세션을 다시 열지 않아도 바로 쓰도록 공개 저장소를 ~/.claude/no-ai-live 에 받아 두고,
+요청 때마다 다섯 분에 한 번 뒤에서 새 커밋을 받는다. 안내에는 그 사본의 적용.md 와 규칙 버전을 넣는다.
+사본이 아직 없으면 설치된 플러그인 폴더를 가리킨다.
 """
 import json
+import os
 import pathlib
+import subprocess
+import sys
+import time
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
-OFF = pathlib.Path.home() / ".claude" / ".no-ai-off"
+CLAUDE = pathlib.Path.home() / ".claude"
+OFF = CLAUDE / ".no-ai-off"
+LIVE = CLAUDE / "no-ai-live"
+STAMP = CLAUDE / ".no-ai-pulled"
+REPO = "https://github.com/yehsb123/no-ai.git"
+EVERY = 5 * 60
 
-if not OFF.exists():
-    print(json.dumps({"hookSpecificOutput": {
-        "hookEventName": "UserPromptSubmit",
-        "additionalContext": f"NO-AI 켜짐. 한국어로 쓰는 글과 답변은 {ROOT / '적용.md'} 를 따른다. 그 파일의 경로는 {ROOT} 기준이다.",
-    }}))
+
+def refresh():
+    """새 커밋을 받는다. 요청을 붙잡지 않도록 뒤에서 돌린다."""
+    if STAMP.exists() and time.time() - STAMP.stat().st_mtime < EVERY:
+        return
+    CLAUDE.mkdir(parents=True, exist_ok=True)
+    STAMP.touch()
+    if (LIVE / ".git").exists():
+        cmd = ["git", "-C", str(LIVE), "pull", "-q", "--ff-only"]
+    else:
+        cmd = ["git", "clone", "-q", "--depth", "1", REPO, str(LIVE)]
+    flags = {}
+    if os.name == "nt":
+        flags["creationflags"] = subprocess.DETACHED_PROCESS | subprocess.CREATE_NEW_PROCESS_GROUP
+    else:
+        flags["start_new_session"] = True
+    try:
+        subprocess.Popen(cmd, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
+                         stderr=subprocess.DEVNULL, **flags)
+    except OSError:
+        pass
+
+
+def version(folder):
+    try:
+        r = subprocess.run(["git", "-C", str(folder), "rev-parse", "--short", "HEAD"],
+                           capture_output=True, text=True, timeout=3)
+        return r.stdout.strip() if r.returncode == 0 else ""
+    except (OSError, subprocess.SubprocessError):
+        return ""
+
+
+def main():
+    if OFF.exists():
+        return
+    refresh()
+    base = LIVE if (LIVE / "적용.md").exists() else ROOT
+    ver = version(base) if base == LIVE else ROOT.name
+    msg = (f"NO-AI 켜짐, 규칙 버전 {ver}. 한국어로 쓰는 글과 답변은 {base / '적용.md'} 를 따른다. "
+           f"그 파일의 경로는 {base} 기준이다.")
+    sys.stdout.write(json.dumps({"hookSpecificOutput": {
+        "hookEventName": "UserPromptSubmit", "additionalContext": msg}}))
+
+
+if __name__ == "__main__":
+    main()

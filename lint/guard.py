@@ -9,6 +9,8 @@ import re
 import sys
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
+# prompt_hook.py 가 공개 저장소를 받아 두는 곳. 받아 온 사본이라 고치면 다음 pull 과 어긋난다.
+LIVE = (pathlib.Path.home() / ".claude" / "no-ai-live").resolve()
 ALLOWED = [
     r"\.claude-plugin/(plugin|marketplace)\.json",
     r"hooks/hooks\.json",
@@ -39,6 +41,8 @@ def main():
     if not raw:
         return
     p = pathlib.Path(raw).resolve()
+    if p == LIVE or LIVE in p.parents:
+        deny("자동으로 받아 온 규칙 사본이라 고치지 않습니다. 원본 저장소에서 고치거나 규칙 제안으로 올립니다.")
     try:
         rel = p.relative_to(ROOT).as_posix()
     except ValueError:
