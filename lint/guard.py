@@ -12,16 +12,14 @@ ROOT = pathlib.Path(__file__).resolve().parent.parent
 ALLOWED = [
     r"\.claude-plugin/(plugin|marketplace)\.json",
     r"hooks/hooks\.json",
-    r"skills/(on|off|log-on|log-off)/SKILL\.md",
+    r"skills/(on|off)/SKILL\.md",
     r"적용\.md",
     r"README\.md",
     r"결정대기\.md",
     r"\.gitignore",
-    r"rules/\d-[^/]+\.md",
+    r"rules/\d{1,2}-[^/]+\.md",
     r"examples/예\d{2}-[^/]+\.md",
     r"lint/[^/]+\.py",
-    r"inbox/[^/]+\.md",
-    r"inbox/done/[^/]+\.md",
 ]
 
 

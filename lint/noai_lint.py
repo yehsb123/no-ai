@@ -4,7 +4,7 @@
 규칙을 고칠 때 검사기가 낡지 않는다. 테스트 샘플도 따로 두지 않고 examples/ 의
 고치기 전, 고친 뒤 글을 그대로 쓴다.
 
-    python noai_lint.py 글.md [--domain 고객]
+    python noai_lint.py 글.md [--domain 고객]        여러 도메인이면 --domain 화면,홍보
     python noai_lint.py --stdin --domain 대화      붙여 넣은 글 검사
     python noai_lint.py --checklist 고객           자동 검사가 없는 규칙 번호와 제목
     python noai_lint.py --test                     예시 대조, 번호 중복, 문장 중복, 사본 경로
@@ -60,10 +60,17 @@ def load_rules():
     return rules
 
 
+def split_domains(domain):
+    """`화면,홍보` 처럼 쉼표로 여러 도메인을 받는다. 공통은 늘 들어간다."""
+    return {d.strip() for d in domain.split(",") if d.strip()} | {"공통"}
+
+
 def applies(rule, domain):
-    if domain in rule["except"]:
+    ds = split_domains(domain)
+    # 쓰는 글이 제외 도메인에 하나라도 걸리면 그 규칙은 적용하지 않는다.
+    if ds & rule["except"]:
         return False
-    return rule["domain"] in ("공통", domain)
+    return rule["domain"] in ds
 
 
 def prose_lines(text):
@@ -146,9 +153,10 @@ def run(text, domain, rules):
 
 
 def cmd_lint(text, name, domain, rules):
-    domains = {r["domain"] for r in rules}
-    if domain not in domains:
-        print(f"도메인 이름이 틀렸습니다: {domain}. 가능한 값: {', '.join(sorted(domains))}")
+    known = {r["domain"] for r in rules}
+    wrong = split_domains(domain) - known
+    if wrong:
+        print(f"도메인 이름이 틀렸습니다: {', '.join(sorted(wrong))}. 가능한 값: {', '.join(sorted(known))}")
         return 2
     hits = run(text, domain, rules)
     for n, rid, title, got in hits:
