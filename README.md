@@ -7,18 +7,25 @@ Claude Code가 한국어 글을 쓸 때 AI 티를 빼도록 하는 플러그인�
 - Claude Code가 설치되어 있어야 합니다.
 - Python 3이 `python` 명령으로 실행되어야 합니다. Windows에서 Python을 설치할 때 첫 화면의 "Add python.exe to PATH"를 체크합니다.
 - 이 저장소는 비공개입니다. 저장소 관리자에게 GitHub 계정을 알려 초대를 받습니다.
-- 초대받은 계정으로 git이 로그인되어 있어야 합니다. GitHub CLI가 있으면 터미널에서 `gh auth login` 을 한 번 실행합니다.
+- 초대받은 계정으로 git이 로그인되어 있어야 합니다. 터미널(PowerShell)에서 아래 두 줄을 한 번 실행합니다. 두 번째 줄이 없으면 비공개 저장소를 받지 못합니다.
+
+```
+gh auth login
+gh auth setup-git
+```
 
 ## 설치
 
-Claude Code를 열고 입력창에 아래 두 줄을 차례로 입력합니다.
+터미널에서 아래 두 명령을 한 줄씩 따로 실행합니다. 첫 줄이 성공한 뒤 둘째 줄을 실행합니다.
 
 ```
-/plugin marketplace add yehsb123/no-ai
-/plugin install no-ai@no-ai
+claude plugin marketplace add yehsb123/no-ai
+claude plugin install no-ai@no-ai
 ```
 
-설치가 끝나면 Claude Code를 닫았다가 다시 엽니다. `/no-ai:on` 을 입력했을 때 "NO-AI 켜짐"이 나오면 설치된 상태입니다.
+Claude Code 입력창에서 해도 됩니다. 그때는 `/plugin marketplace add yehsb123/no-ai` 를 보내고, 끝난 뒤 `/plugin install no-ai@no-ai` 를 따로 보냅니다. 두 줄을 한 번에 붙여 넣으면 한 명령으로 읽혀 설치되지 않습니다.
+
+설치가 끝나면 Claude Code를 닫았다가 다시 엽니다. `/no-ai:on` 을 입력했을 때 "NO-AI 켜짐"이 나오면 설치된 상태입니다. 실패하면 터미널에 나온 오류 문구를 저장소 관리자에게 보냅니다.
 
 ## 업데이트 받기
 
