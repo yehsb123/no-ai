@@ -19,6 +19,7 @@ ALLOWED = [
     r"README\.md",
     r"결정대기\.md",
     r"\.gitignore",
+    r"\.gitattributes",
     r"rules/\d{1,2}-[^/]+\.md",
     r"examples/예\d{2}-[^/]+\.md",
     r"lint/[^/]+\.py",
