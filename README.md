@@ -16,16 +16,20 @@ sudo ln -s "$(command -v python3)" /usr/local/bin/python
 
 ## 설치
 
-터미널에서 아래 두 명령을 한 줄씩 따로 실행합니다. 첫 줄이 성공한 뒤 둘째 줄을 실행합니다.
+네 단계입니다. 1번과 2번은 한 줄씩 따로 실행하고, 앞 단계가 성공한 뒤 다음 단계로 넘어갑니다.
 
-```
-claude plugin marketplace add yehsb123/no-ai
-claude plugin install no-ai@no-ai
-```
+1. 터미널에서 마켓플레이스를 추가합니다.
+   ```
+   claude plugin marketplace add yehsb123/no-ai
+   ```
+2. 이어서 플러그인을 설치합니다.
+   ```
+   claude plugin install no-ai@no-ai
+   ```
+3. Claude Code를 닫았다가 다시 엽니다.
+4. Claude Code 입력창에 `/no-ai:on` 을 입력합니다. "NO-AI 켜짐"이 나오면 준비가 끝났습니다.
 
-Claude Code 입력창에서 해도 됩니다. `/plugin marketplace add yehsb123/no-ai` 를 보내고, 끝나면 `/plugin install no-ai@no-ai` 를 따로 보냅니다. 두 줄을 한 번에 붙여 넣으면 한 명령으로 읽혀 설치되지 않습니다.
-
-설치가 끝나면 Claude Code를 닫았다가 다시 엽니다. `/no-ai:on` 을 입력해 "NO-AI 켜짐"이 나오면 준비가 끝났습니다.
+1번과 2번은 Claude Code 입력창에서 `/plugin marketplace add yehsb123/no-ai`, `/plugin install no-ai@no-ai` 로 해도 됩니다. 두 줄을 한 번에 붙여 넣으면 한 명령으로 읽혀 설치되지 않습니다.
 
 ## 쓰는 법
 

@@ -18,6 +18,11 @@ CLAUDE = pathlib.Path.home() / ".claude"
 OFF = CLAUDE / ".no-ai-off"
 LIVE = CLAUDE / "no-ai-live"
 STAMP = CLAUDE / ".no-ai-pulled"
+# 설치한 사람이 켜졌는지 모르고 지나가지 않도록 첫 요청 한 번만 답변 첫 줄에 알리게 한다.
+WELCOMED = CLAUDE / ".no-ai-welcomed"
+WELCOME = ("이 PC에서 NO-AI가 처음 쓰였다. 답변 첫 줄에 "
+           "\"NO-AI가 켜져 있습니다. 끄려면 /no-ai:off, 다시 켜려면 /no-ai:on 을 입력합니다.\" "
+           "한 줄을 그대로 쓰고 요청에 답한다.")
 REPO = "https://github.com/yehsb123/no-ai.git"
 EVERY = 5 * 60
 
@@ -61,6 +66,10 @@ def main():
     ver = version(base) if base == LIVE else ROOT.name
     msg = (f"NO-AI 켜짐, 규칙 버전 {ver}. 한국어로 쓰는 글과 답변은 {base / '적용.md'} 를 따른다. "
            f"그 파일의 경로는 {base} 기준이다.")
+    if not WELCOMED.exists():
+        CLAUDE.mkdir(parents=True, exist_ok=True)
+        WELCOMED.touch()
+        msg += " " + WELCOME
     sys.stdout.write(json.dumps({"hookSpecificOutput": {
         "hookEventName": "UserPromptSubmit", "additionalContext": msg}}))
 
