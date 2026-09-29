@@ -49,6 +49,8 @@ def main():
         if re.match(r"no-ai", p.name, re.I):
             deny(f"NO-AI 규칙은 {ROOT} 한 곳에만 둡니다. 사본을 만들지 말고 그 폴더의 rules/ 를 고칩니다.")
         return
+    if not (ROOT / ".git").exists():
+        deny("설치된 플러그인 사본이라 고치지 않습니다. 고친 내용은 다음 업데이트 때 사라집니다. 원본 저장소에서 고칩니다.")
     if not any(re.fullmatch(a, rel) for a in ALLOWED):
         deny(f"NO-AI 폴더에는 정해진 파일만 둡니다. {rel} 은 틀 밖입니다. 적용.md 의 파일 표를 봅니다.")
 
