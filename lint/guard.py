@@ -17,6 +17,7 @@ ALLOWED = [
     r"skills/(on|off)/SKILL\.md",
     r"적용\.md",
     r"README\.md",
+    r"LICENSE",
     r"결정대기\.md",
     r"\.gitignore",
     r"\.gitattributes",
