@@ -64,7 +64,8 @@ def main():
     refresh()
     base = LIVE if (LIVE / "적용.md").exists() else ROOT
     ver = version(base) if base == LIVE else ROOT.name
-    msg = (f"NO-AI 켜짐, 규칙 버전 {ver}. 한국어로 쓰는 글과 답변은 {base / '적용.md'} 를 따른다. "
+    # 안내에 "한국어로 답한다"가 없을 때 영어로 답한 세션이 있었다 (D09).
+    msg = (f"NO-AI 켜짐, 규칙 버전 {ver}. 사용자에게 하는 답변은 한국어로만 쓴다. 한국어로 쓰는 글과 답변은 {base / '적용.md'} 를 따른다. "
            f"그 파일의 경로는 {base} 기준이다.")
     if not WELCOMED.exists():
         CLAUDE.mkdir(parents=True, exist_ok=True)
