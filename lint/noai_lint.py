@@ -252,6 +252,23 @@ def cmd_test(rules):
                 bad.append(f"문장 중복: {name} 안에서: {s[:40]}")
             seen.setdefault(s, name)
 
+    # 규칙을 옮기거나 번호를 바꾸면 다른 파일이 옛 번호를 가리킨 채 남는다.
+    ref = re.compile(r"(?<![A-Za-z0-9])([A-Z]\d{2})(?!\d)")
+    prefixes = {i[0] for i in by_id}
+    for f in files:
+        if not f.exists():
+            continue
+        for n, line in enumerate(f.read_text(encoding="utf-8").splitlines(), 1):
+            for rid in ref.findall(line):
+                if rid[0] in prefixes and rid not in by_id:
+                    bad.append(f"없는 규칙을 가리킴: {f.relative_to(ROOT).as_posix()}:{n} {rid}")
+
+    # 도메인 표에 없는 규칙 파일은 쓰는 쪽이 찾지 못한다.
+    apply_text = (ROOT / "적용.md").read_text(encoding="utf-8")
+    for f in sorted(RULES.glob("*.md")):
+        if f"`{f.name}`" not in apply_text:
+            bad.append(f"적용.md 도메인 표에 없는 규칙 파일: {f.name}")
+
     for p in FORBIDDEN_COPIES:
         if p.exists():
             bad.append(f"규칙 사본이 있습니다: {p}")

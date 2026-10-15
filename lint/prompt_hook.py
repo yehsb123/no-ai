@@ -5,10 +5,17 @@
 규칙이 올라오면 세션을 다시 열지 않아도 바로 쓰도록 공개 저장소를 ~/.claude/no-ai-live 에 받아 두고,
 요청 때마다 다섯 분에 한 번 뒤에서 새 커밋을 받는다. 안내에는 그 사본의 적용.md 와 규칙 버전을 넣는다.
 사본이 아직 없으면 설치된 플러그인 폴더를 가리킨다.
+
+사본은 읽기 전용이라 받을 때 pull 대신 원격 상태로 덮어쓴다. 저장소 기록을 다시 쓰면 pull --ff-only 는
+영영 실패하고 그 PC는 조용히 옛 규칙에 머문다. 덮어쓰기도 실패하면 지우고 새로 받는다.
+
+    python prompt_hook.py          훅으로 쓸 때
+    python prompt_hook.py --pull   사본 받기 (훅이 뒤에서 부른다)
 """
 import json
 import os
 import pathlib
+import shutil
 import subprocess
 import sys
 import time
@@ -28,20 +35,35 @@ def refresh():
         return
     CLAUDE.mkdir(parents=True, exist_ok=True)
     STAMP.touch()
-    if (LIVE / ".git").exists():
-        cmd = ["git", "-C", str(LIVE), "pull", "-q", "--ff-only"]
-    else:
-        cmd = ["git", "clone", "-q", "--depth", "1", REPO, str(LIVE)]
     flags = {}
     if os.name == "nt":
         flags["creationflags"] = subprocess.DETACHED_PROCESS | subprocess.CREATE_NEW_PROCESS_GROUP
     else:
         flags["start_new_session"] = True
     try:
-        subprocess.Popen(cmd, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
-                         stderr=subprocess.DEVNULL, **flags)
+        subprocess.Popen([sys.executable, __file__, "--pull"], stdin=subprocess.DEVNULL,
+                         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, **flags)
     except OSError:
         pass
+
+
+def git(*args):
+    try:
+        return subprocess.run(["git", *args], stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
+                              stderr=subprocess.DEVNULL, timeout=120).returncode == 0
+    except (OSError, subprocess.SubprocessError):
+        return False
+
+
+def pull():
+    if (LIVE / ".git").exists():
+        # 인터넷이 끊겨 받지 못했으면 있는 사본을 그대로 쓴다.
+        if not git("-C", str(LIVE), "fetch", "-q", "--depth", "1", "origin", "main"):
+            return
+        if git("-C", str(LIVE), "reset", "-q", "--hard", "FETCH_HEAD"):
+            return
+    shutil.rmtree(LIVE, ignore_errors=True)
+    git("clone", "-q", "--depth", "1", REPO, str(LIVE))
 
 
 def version(folder):
@@ -54,6 +76,9 @@ def version(folder):
 
 
 def main():
+    if "--pull" in sys.argv:
+        pull()
+        return
     if OFF.exists():
         return
     refresh()
