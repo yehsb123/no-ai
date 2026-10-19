@@ -16,6 +16,7 @@ import json
 import os
 import pathlib
 import shutil
+import stat
 import subprocess
 import sys
 import time
@@ -47,29 +48,50 @@ def refresh():
         pass
 
 
+# 콘솔 없이 뜬 프로세스가 git 을 부르면 Windows 에서 검은 창이 깜빡인다.
+NO_WINDOW = {"creationflags": subprocess.CREATE_NO_WINDOW} if os.name == "nt" else {}
+
+
 def git(*args):
     try:
         return subprocess.run(["git", *args], stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
-                              stderr=subprocess.DEVNULL, timeout=120).returncode == 0
+                              stderr=subprocess.DEVNULL, timeout=120, **NO_WINDOW).returncode == 0
     except (OSError, subprocess.SubprocessError):
         return False
 
 
+def remove(folder):
+    """Windows 의 git 객체 파일은 읽기 전용이라 그냥 지우면 남는다."""
+    def writable(func, path, *_):
+        os.chmod(path, stat.S_IWRITE)
+        func(path)
+    if not folder.exists():
+        return
+    if sys.version_info >= (3, 12):
+        shutil.rmtree(folder, onexc=writable)
+    else:
+        shutil.rmtree(folder, onerror=writable)
+
+
 def pull():
     if (LIVE / ".git").exists():
-        # 인터넷이 끊겨 받지 못했으면 있는 사본을 그대로 쓴다.
-        if not git("-C", str(LIVE), "fetch", "-q", "--depth", "1", "origin", "main"):
+        if git("-C", str(LIVE), "fetch", "-q", "--depth", "1", "origin", "main"):
+            if git("-C", str(LIVE), "reset", "-q", "--hard", "FETCH_HEAD"):
+                return
+        # 받지 못했을 때 사본이 멀쩡하면 인터넷 문제로 보고 있는 사본을 그대로 쓴다.
+        elif git("-C", str(LIVE), "rev-parse", "-q", "--verify", "HEAD"):
             return
-        if git("-C", str(LIVE), "reset", "-q", "--hard", "FETCH_HEAD"):
-            return
-    shutil.rmtree(LIVE, ignore_errors=True)
+    try:
+        remove(LIVE)
+    except OSError:
+        return
     git("clone", "-q", "--depth", "1", REPO, str(LIVE))
 
 
 def version(folder):
     try:
         r = subprocess.run(["git", "-C", str(folder), "rev-parse", "--short", "HEAD"],
-                           capture_output=True, text=True, timeout=3)
+                           capture_output=True, text=True, timeout=3, **NO_WINDOW)
         return r.stdout.strip() if r.returncode == 0 else ""
     except (OSError, subprocess.SubprocessError):
         return ""
@@ -83,7 +105,7 @@ def main():
         return
     refresh()
     base = LIVE if (LIVE / "적용.md").exists() else ROOT
-    ver = version(base) if base == LIVE else ROOT.name
+    ver = (version(base) if base == LIVE else "") or "설치본"
     # 안내에 "한국어로 답한다"가 없을 때 영어로 답한 세션이 있었다 (D09).
     msg = (f"NO-AI 켜짐, 규칙 버전 {ver}. 사용자에게 하는 답변은 한국어로만 쓴다. 한국어로 쓰는 글과 답변은 {base / '적용.md'} 를 따른다. "
            f"그 파일의 경로는 {base} 기준이다.")

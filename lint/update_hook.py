@@ -24,10 +24,14 @@ STAMP = CLAUDE / ".no-ai-updated"
 EVERY = 6 * 60 * 60
 
 
+# 콘솔 없이 뜬 프로세스가 git, claude 를 부르면 Windows 에서 검은 창이 깜빡인다.
+NO_WINDOW = {"creationflags": subprocess.CREATE_NO_WINDOW} if os.name == "nt" else {}
+
+
 def git(*args):
     try:
         return subprocess.run(["git", *args], stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
-                              stderr=subprocess.DEVNULL, timeout=120).returncode == 0
+                              stderr=subprocess.DEVNULL, timeout=120, **NO_WINDOW).returncode == 0
     except (OSError, subprocess.SubprocessError):
         return False
 
@@ -46,13 +50,22 @@ def sync_marketplace():
 
 
 def update():
+    """성공하면 True. 실패하면 다음 세션에서 다시 하도록 시각 표시를 지운다."""
     claude = shutil.which("claude")
-    if not claude:
-        return
-    sync_marketplace()
-    for args in (["plugin", "marketplace", "update", "no-ai"], ["plugin", "update", "no-ai@no-ai"]):
-        subprocess.run([claude, *args], stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
-                       stderr=subprocess.DEVNULL, timeout=300)
+    ok = False
+    if claude:
+        sync_marketplace()
+        ok = True
+        for args in (["plugin", "marketplace", "update", "no-ai"], ["plugin", "update", "no-ai@no-ai"]):
+            try:
+                r = subprocess.run([claude, *args], stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
+                                   stderr=subprocess.DEVNULL, timeout=300, **NO_WINDOW)
+                ok = ok and r.returncode == 0
+            except (OSError, subprocess.SubprocessError):
+                ok = False
+    if not ok:
+        STAMP.unlink(missing_ok=True)
+    return ok
 
 
 def main():
@@ -68,8 +81,11 @@ def main():
         flags["creationflags"] = subprocess.DETACHED_PROCESS | subprocess.CREATE_NEW_PROCESS_GROUP
     else:
         flags["start_new_session"] = True
-    subprocess.Popen([sys.executable, __file__, "--now"], stdin=subprocess.DEVNULL,
-                     stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, **flags)
+    try:
+        subprocess.Popen([sys.executable, __file__, "--now"], stdin=subprocess.DEVNULL,
+                         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, **flags)
+    except OSError:
+        STAMP.unlink(missing_ok=True)
 
 
 if __name__ == "__main__":
