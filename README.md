@@ -58,7 +58,7 @@ sudo ln -s "$(command -v python3)" /usr/local/bin/python
 
 따로 할 일은 없습니다. 켜 둔 상태에서 요청을 보내면 많아야 다섯 분에 한 번 뒤에서 새 규칙을 받고, 그다음 요청부터 적용됩니다. 쓰고 있던 세션을 껐다 켤 필요가 없습니다.
 
-훅이나 명령처럼 플러그인 자체가 바뀐 경우는 여섯 시간에 한 번 받고, 다음에 Claude Code를 켤 때 적용됩니다. 지금 바로 받으려면 터미널에서 `claude plugin marketplace update no-ai` 와 `claude plugin update no-ai@no-ai` 를 차례로 실행하고 Claude Code를 다시 엽니다. 이 두 명령이 실패하면 `claude plugin marketplace remove no-ai` 를 실행한 뒤 설치의 1번과 2번을 다시 합니다.
+훅이나 명령처럼 플러그인 자체가 바뀐 경우는 6시간에 한 번 받고, 다음에 Claude Code를 켤 때 적용됩니다. 지금 바로 받으려면 터미널에서 `claude plugin marketplace update no-ai` 와 `claude plugin update no-ai@no-ai` 를 차례로 실행하고 Claude Code를 다시 엽니다. 이 두 명령이 실패하면 `claude plugin marketplace remove no-ai` 를 실행한 뒤 설치의 1번과 2번을 다시 합니다.
 
 ## 규칙 제안
 
