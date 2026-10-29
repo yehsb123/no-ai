@@ -13,6 +13,15 @@ import pathlib
 import sys
 
 OFF = pathlib.Path.home() / ".claude" / ".no-ai-off"
+# 관리자 PC에서만 생긴다. 플라이휠(flywheel.py)이 쌓인 규칙 후보 수를 적어 둔다.
+FLYWHEEL = pathlib.Path.home() / ".claude" / "no-ai-flywheel" / "state.json"
+
+
+def pending():
+    try:
+        return int(json.loads(FLYWHEEL.read_text(encoding="utf-8")).get("pending", 0))
+    except (OSError, ValueError, TypeError, AttributeError):
+        return 0
 
 
 def main():
@@ -21,6 +30,8 @@ def main():
     if arg == "notice":
         msg = ("NO-AI가 꺼져 있습니다. 켜려면 /no-ai:on 을 입력합니다." if OFF.exists()
                else "NO-AI가 켜져 있습니다. 끄려면 /no-ai:off 를 입력합니다.")
+        if n := pending():
+            msg += f" 규칙 후보 {n}건이 쌓였습니다. \"반영\"이라고 하면 검토해서 넣습니다."
         print(json.dumps({"systemMessage": msg}, ensure_ascii=False))
         return 0
     if arg == "on":

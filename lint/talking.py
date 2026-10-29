@@ -35,7 +35,41 @@ def text_of(content):
 def is_noise(text):
     return (not text or text.startswith("<command-") or text.startswith("<local-command")
             or text.startswith("<system-reminder>") or text.startswith("[Request interrupted")
+            or text.startswith("<task-notification") or text.startswith("This session is being continued")
             or "<cross-session-message" in text[:300] or "tool_use_id" in text)
+
+
+def own_words(text):
+    """붙여 넣은 글을 빼고 사용자가 직접 친 말만 남긴다. 붙여 넣은 글은 사용자 반응이 아니다."""
+    return re.sub(r"<pasted_content[^>]*>.*?</pasted_content[^>]*>", " ", text, flags=re.S).strip()
+
+
+def walk(f, since):
+    """기록 파일 하나에서 ("ai" | "user", 시각, 글) 을 차례로 돌려준다. 첫 값은 세션 이름이다.
+
+    플라이휠(flywheel.py)도 같은 기준으로 기록을 읽도록 이 함수를 쓴다.
+    """
+    title = ""
+    events = []
+    for line in open(f, encoding="utf-8", errors="ignore"):
+        try:
+            d = json.loads(line)
+        except ValueError:
+            continue
+        title = d.get("customTitle") or title
+        if d.get("isSidechain"):
+            continue
+        msg = d.get("message") or {}
+        when = d.get("timestamp", "")[:16]
+        if d.get("type") == "assistant":
+            t = text_of(msg.get("content"))
+            if t.strip():
+                events.append(("ai", when, t))
+        elif d.get("type") == "user" and not d.get("isMeta"):
+            t = own_words(text_of(msg.get("content")))
+            if not is_noise(t) and when[:10] >= since:
+                events.append(("user", when, t))
+    return title, events
 
 
 def main():
@@ -52,26 +86,15 @@ def main():
         # 그 날짜 뒤로 고쳐지지 않은 기록은 볼 필요가 없다.
         if os.path.getmtime(f) < since_ts:
             continue
-        rows, last_ai, title = [], "", ""
-        for line in open(f, encoding="utf-8", errors="ignore"):
-            try:
-                d = json.loads(line)
-            except ValueError:
+        title, events = walk(f, a.since)
+        rows, last_ai = [], ""
+        for kind, when, t in events:
+            if kind == "ai":
+                last_ai = t
                 continue
-            title = d.get("customTitle") or title
-            msg = d.get("message") or {}
-            if d.get("type") == "assistant":
-                t = text_of(msg.get("content"))
-                if t.strip():
-                    last_ai = t
-            elif d.get("type") == "user" and not d.get("isMeta") and not d.get("isSidechain"):
-                t = text_of(msg.get("content")).strip()
-                when = d.get("timestamp", "")[:16]
-                if is_noise(t) or when[:10] < a.since:
-                    continue
-                if WRITING.search(t):
-                    rows.append((when, last_ai[-500:].replace("\n", " "), t[:1500]))
-                last_ai = ""
+            if WRITING.search(t):
+                rows.append((when, last_ai[-500:].replace("\n", " "), t[:1500]))
+            last_ai = ""
         if not rows:
             continue
         name = re.sub(r"[^0-9A-Za-z가-힣_-]", "_", title or pathlib.Path(f).stem[:8])[:40]
