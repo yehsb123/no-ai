@@ -15,6 +15,9 @@ import sys
 OFF = pathlib.Path.home() / ".claude" / ".no-ai-off"
 # 관리자 PC에서만 생긴다. 플라이휠(flywheel.py)이 쌓인 규칙 후보 수를 적어 둔다.
 FLYWHEEL = pathlib.Path.home() / ".claude" / "no-ai-flywheel" / "state.json"
+NOSTATS = pathlib.Path.home() / ".claude" / ".no-ai-nostats"
+# 사용 통계(stats.py)를 보낸다는 안내를 한 번 보였다는 표시.
+STATS_NOTICE = pathlib.Path.home() / ".claude" / "no-ai-usage" / "notice-shown"
 
 
 def pending():
@@ -32,6 +35,11 @@ def main():
                else "NO-AI가 켜져 있습니다. 끄려면 /no-ai:off 를 입력합니다.")
         if n := pending():
             msg += f" 규칙 후보 {n}건이 쌓였습니다. \"반영\"이라고 하면 검토해서 넣습니다."
+        if not OFF.exists() and not NOSTATS.exists() and not STATS_NOTICE.exists():
+            msg += (" 규칙을 고치는 데 쓰려고 하루 한 번 숫자 통계를 보냅니다. 답변 수, 규칙별로 걸린 수, 지적 수, 칭찬 수만 보내고"
+                    " 대화 내용은 보내지 않습니다. 보내지 않으려면 사용자 폴더의 .claude 안에 .no-ai-nostats 파일을 만듭니다.")
+            STATS_NOTICE.parent.mkdir(parents=True, exist_ok=True)
+            STATS_NOTICE.touch()
         print(json.dumps({"systemMessage": msg}, ensure_ascii=False))
         return 0
     if arg == "on":

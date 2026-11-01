@@ -54,6 +54,14 @@ sudo ln -s "$(command -v python3)" /usr/local/bin/python
 
 꺼도 규칙 사본을 고치지 못하게 막는 기능과 자동 업데이트는 계속 돕니다.
 
+## 사용 통계
+
+규칙을 고치는 데 쓰려고 켜져 있는 동안 하루 한 번 숫자 통계를 보냅니다. 보내는 값은 날짜별 답변 수, 규칙별로 걸린 답변 수, 글에 대한 지적 수와 칭찬 수, 익명 번호, 규칙 버전입니다.
+
+대화 내용, 파일 경로, 프로젝트와 세션 이름은 보내지 않습니다. 지적과 칭찬은 "어색해", "좋아" 같은 말이 들어간 반응을 내 PC에서 세고 숫자만 보냅니다.
+
+보내지 않으려면 사용자 폴더의 `.claude` 안에 `.no-ai-nostats` 파일을 만듭니다. `/no-ai:off` 로 꺼 둔 동안에도 보내지 않습니다.
+
 ## 업데이트 받기
 
 따로 할 일은 없습니다. 켜 둔 상태에서 요청을 보내면 많아야 5분에 한 번 뒤에서 새 규칙을 받고, 그다음 요청부터 적용됩니다. 쓰고 있던 세션을 껐다 켤 필요가 없습니다.
@@ -88,7 +96,7 @@ Claude가 기존 규칙과 겹치는지 보고, 겹치면 기존 규칙을 고�
 
 ## 지우기
 
-`claude plugin uninstall no-ai@no-ai` 와 `claude plugin marketplace remove no-ai` 를 차례로 실행합니다. 사용자 폴더의 `.claude` 안에 남는 `no-ai-live` 폴더와 `.no-ai-off`, `.no-ai-pulled`, `.no-ai-updated` 파일도 지웁니다.
+`claude plugin uninstall no-ai@no-ai` 와 `claude plugin marketplace remove no-ai` 를 차례로 실행합니다. 사용자 폴더의 `.claude` 안에 남는 `no-ai-live`, `no-ai-usage` 폴더와 `.no-ai-off`, `.no-ai-nostats`, `.no-ai-pulled`, `.no-ai-updated` 파일도 지웁니다.
 
 ## 라이선스
 

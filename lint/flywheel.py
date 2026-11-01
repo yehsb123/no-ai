@@ -21,16 +21,21 @@ import pathlib
 import re
 import subprocess
 import sys
+import urllib.error
+import urllib.request
 from collections import Counter, defaultdict
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 import noai_lint  # noqa: E402
+import stats  # noqa: E402
 import talking  # noqa: E402
 
 OUT = pathlib.Path.home() / ".claude" / "no-ai-flywheel"
 CACHE = OUT / "cache.json"
 STATE = OUT / "state.json"
 REPORT = OUT / "보고서.html"
+# 수집 서버의 모아 보기 키. 관리자 PC에만 두고 저장소에는 넣지 않는다.
+STATS_KEY = OUT / "stats-key"
 # 창 없는 예약 작업에서 git 이나 claude 를 부르면 Windows 에서 콘솔 창이 깜빡인다.
 NO_WINDOW = {"creationflags": subprocess.CREATE_NO_WINDOW} if os.name == "nt" else {}
 START = "2026-09-29"
@@ -70,6 +75,16 @@ def scan(f, rules):
         last_ai = ""
     return {"days": {d: {"answers": v["answers"], "hits": dict(v["hits"])} for d, v in days.items()},
             "cands": cands}
+
+
+def basis(rules, *modules):
+    """규칙이나 수집 기준이 바뀌면 같은 기록도 결과가 달라지므로 지난 결과를 버린다. 그 판단에 쓰는 값.
+
+    사용 통계(stats.py)도 scan 을 쓰므로 같은 기준으로 캐시를 버린다.
+    """
+    b = [(r["id"], r["domain"], r["checks"], sorted(r["except"])) for r in rules]
+    code = b"".join(pathlib.Path(m.__file__).read_bytes() for m in modules)
+    return hashlib.sha1(json.dumps(b).encode() + code).hexdigest()
 
 
 def load(path, default):
@@ -132,7 +147,69 @@ def rank(pending):
     return sorted(pending, key=lambda c: (c["score"], c["when"]), reverse=True)
 
 
-def report(days, cands, state, rules):
+def table(head, body, empty):
+    if not body:
+        return f"<p>{empty}</p>"
+    return "<table><tr>" + "".join(f"<th>{h}</th>" for h in head) + "</tr>" + "".join(body) + "</table>"
+
+
+def everyone():
+    """수집 서버에서 모든 사용자의 날짜별 합계를 받는다. (요약, None) 이나 (None, 못 받은 이유)."""
+    try:
+        key = STATS_KEY.read_text(encoding="utf-8").strip()
+    except OSError:
+        return None, f"{STATS_KEY} 에 stats-key 파일이 없어 모든 사용자 통계를 받지 못했습니다."
+    req = urllib.request.Request(stats.SERVER.rstrip("/") + "/api/summary", headers={"x-stats-key": key})
+    try:
+        with urllib.request.urlopen(req, timeout=10) as r:
+            return json.loads(r.read().decode("utf-8")), None
+    except urllib.error.HTTPError as e:
+        return None, f"수집 서버가 HTTP {e.code} 로 답해 모든 사용자 통계를 받지 못했습니다."
+    except (urllib.error.URLError, OSError) as e:
+        return None, f"수집 서버에 닿지 못해 모든 사용자 통계를 받지 못했습니다: {e}"
+    except ValueError:
+        return None, "수집 서버의 답이 JSON 이 아니라 모든 사용자 통계를 받지 못했습니다."
+
+
+def everyone_html(summary, why, rules):
+    """모든 사용자 절. 받지 못했으면 이유 한 줄만 둔다."""
+    head = "<h2>모든 사용자</h2>"
+    if summary is None:
+        return head + f"<p>{html.escape(why)}</p>"
+    titles = {r["id"]: r["title"] for r in rules}
+    days = summary.get("days", {})
+    weeks = defaultdict(Counter)
+    for d, v in days.items():
+        x = datetime.date.fromisoformat(d)
+        weeks[(x - datetime.timedelta(days=x.weekday())).isoformat()].update(
+            {k: v[k] for k in ("answers", "critic", "praise")})
+
+    def per100(n, ans):
+        return f"{n * 100 / ans:.1f}" if ans else "-"
+
+    wrows = []
+    for w, v in sorted(weeks.items(), reverse=True)[:8]:
+        said = v["critic"] + v["praise"]
+        happy = f"{round(v['praise'] * 100 / said)}%" if said else "-"
+        wrows.append(f"<tr><td>{w} 주</td><td>{summary.get('weeks', {}).get(w, 0)}</td><td>{v['answers']}</td>"
+                     f"<td>{per100(v['critic'], v['answers'])}</td><td>{per100(v['praise'], v['answers'])}</td>"
+                     f"<td>{happy}</td></tr>")
+    since = shift(datetime.date.today().isoformat(), -28)
+    recent = [v for d, v in days.items() if d >= since]
+    ans = sum(v["answers"] for v in recent)
+    hits = Counter()
+    for v in recent:
+        hits.update(v["hits"])
+    top = [f"<tr><td>{rid}</td><td>{html.escape(titles.get(rid, ''))}</td><td>{per100(n, ans)}</td><td>{n}</td></tr>"
+           for rid, n in hits.most_common(5)] if ans else []
+    return (head + "<p>설치한 PC마다 하루 한 번 보낸 숫자를 모았습니다. 지적과 칭찬은 답변 100개당 수이고,"
+            " 만족도는 칭찬을 지적과 칭찬의 합으로 나눈 값입니다.</p>"
+            + table(["주", "보낸 PC 수", "답변 수", "100개당 지적", "100개당 칭찬", "만족도"], wrows, "아직 받은 숫자가 없습니다.")
+            + "<h2>모든 사용자가 자주 어기는 규칙</h2><p>최근 28일 동안 답변 100개당 걸린 수입니다.</p>"
+            + table(["규칙", "제목", "100개당", "걸린 답변 수"], top, "최근 28일 동안 받은 답변이 없습니다."))
+
+
+def report(days, cands, state, rules, allusers=""):
     titles = {r["id"]: r["title"] for r in rules}
     checked = {r["id"] for r in rules if r["checks"]}
     today = datetime.date.today().isoformat()
@@ -177,11 +254,6 @@ def report(days, cands, state, rules):
     wrows = [f"<tr><td>{w} 주</td><td>{v['지적']}</td><td>{v['칭찬']}</td></tr>"
              for w, v in sorted(weekly.items(), reverse=True)[:8]]
 
-    def table(head, body, empty):
-        if not body:
-            return f"<p>{empty}</p>"
-        return "<table><tr>" + "".join(f"<th>{h}</th>" for h in head) + "</tr>" + "".join(body) + "</table>"
-
     page = f"""<!doctype html><html lang=ko><meta charset=utf-8>
 <meta name=viewport content="width=device-width,initial-scale=1"><title>NO-AI 플라이휠</title>
 <style>
@@ -214,6 +286,7 @@ th{{color:var(--sub);font-weight:500}} td.ai{{color:var(--sub);font-size:12px}}
 {table(["규칙", "제목", "넣은 날", "넣기 전", "넣은 뒤"], erows, "아직 잴 만큼 기록이 쌓인 규칙이 없습니다.")}
 <h2>주마다 받은 지적과 칭찬</h2>
 {table(["주", "지적", "칭찬"], wrows, "기록이 없습니다.")}
+{allusers}
 </html>
 """
     REPORT.write_text(page, encoding="utf-8")
@@ -389,10 +462,7 @@ def main():
             save_state(eval_error=str(e)[:200])
             print("비교 시험 실패:", e)
     rules = noai_lint.load_rules()
-    # 규칙이나 수집 기준이 바뀌면 같은 기록도 결과가 달라지므로 지난 결과를 버린다.
-    basis = [(r["id"], r["domain"], r["checks"], sorted(r["except"])) for r in rules]
-    code = b"".join(pathlib.Path(m.__file__).read_bytes() for m in (talking, noai_lint, sys.modules[__name__]))
-    version = hashlib.sha1(json.dumps(basis).encode() + code).hexdigest()
+    version = basis(rules, talking, noai_lint, sys.modules[__name__])
     cache = load(CACHE, {})
     if cache.get("version") != version:
         cache = {"version": version, "files": {}}
@@ -414,7 +484,7 @@ def main():
             days[d]["answers"] += x["answers"]
             days[d]["hits"].update(x["hits"])
         cands += v["cands"]
-    pending = report(days, cands, load(STATE, {}), rules)
+    pending = report(days, cands, load(STATE, {}), rules, everyone_html(*everyone(), rules))
     save_state(pending=pending, updated=datetime.date.today().isoformat())
     print(REPORT)
     print(f"반영 대기 후보 {pending}건, 답변 {sum(v['answers'] for v in days.values())}개 검사")
