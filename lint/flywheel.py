@@ -324,15 +324,20 @@ def run_eval():
     form = (f'{out / "blind.md"} 에 요청마다 X, Y 두 글이 있다. 번호마다 더 나은 쪽을 고른다. '
             '답은 {"01": "X", "02": "tie", ...} 형식의 JSON 하나만 쓴다. 값은 X, Y, tie 가운데 하나다.')
     judges = {
-        "A": f"{LIVE / 'rules'} 폴더의 규칙 파일을 모두 읽고, 그 규칙을 기준으로 두 글을 비교한다. 사실에 없는 내용을 지어낸 글은 진다. " + form,
+        # 판정자는 Read 만 쓸 수 있어 폴더 목록을 못 본다. 폴더만 알려 준 11/1 시험은 규칙을 못 읽고 판정 없이 멈췄다.
+        "A": "규칙 파일 " + ", ".join(str(f) for f in sorted((LIVE / "rules").glob("*.md")))
+             + " 을 모두 읽고, 그 규칙을 기준으로 두 글을 비교한다. 사실에 없는 내용을 지어낸 글은 진다. " + form,
         "B": "규칙 파일은 읽지 않는다. 그 글을 실제로 받아 쓰는 실무자 입장에서 더 바로 쓸 수 있는 글을 고른다. 사실에 없는 내용을 지어낸 글은 진다. " + form,
     }
     tally = {}
     for j, p in judges.items():
-        v = verdict(ask(p))
+        answer = ask(p)
+        v = verdict(answer)
         (out / f"verdict-{j}.json").write_text(json.dumps(v), encoding="utf-8")
         if set(v) != set(key):
-            raise RuntimeError(f"판정자 {j} 의 답이 {len(v)}건이라 비교한 {len(key)}건과 맞지 않습니다")
+            (out / f"answer-{j}.txt").write_text(answer, encoding="utf-8")
+            raise RuntimeError(f"판정자 {j} 의 답이 {len(v)}건이라 비교한 {len(key)}건과 맞지 않습니다. "
+                               f"받은 답은 answer-{j}.txt 에 있습니다")
         tally[j] = Counter(key[n][w] if w in ("X", "Y") else "tie" for n, w in v.items())
     row = [day, ver, tally["A"]["noai"], tally["A"]["plain"], tally["A"]["tie"],
            tally["B"]["noai"], tally["B"]["plain"], tally["B"]["tie"], lint["noai"], lint["plain"], len(failed)]
