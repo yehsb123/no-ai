@@ -171,13 +171,37 @@ def everyone():
         return None, "수집 서버의 답이 JSON 이 아니라 모든 사용자 통계를 받지 못했습니다."
 
 
+def tidy(summary):
+    """서버 답을 날짜, 정수, 규칙 번호만 남겨 다시 짠다.
+
+    수집 주소는 누구나 POST 할 수 있어, 서버 검사를 거쳐도 보고서 HTML 에 그대로 넣지 않는다.
+    """
+    def num(x):
+        return x if isinstance(x, int) and not isinstance(x, bool) and x >= 0 else 0
+
+    def date(d):
+        return isinstance(d, str) and re.fullmatch(r"\d{4}-\d{2}-\d{2}", d)
+
+    raw = summary if isinstance(summary, dict) else {}
+    days = {}
+    for d, v in (raw.get("days") if isinstance(raw.get("days"), dict) else {}).items():
+        if not date(d) or not isinstance(v, dict):
+            continue
+        hits = v.get("hits") if isinstance(v.get("hits"), dict) else {}
+        days[d] = {"answers": num(v.get("answers")), "critic": num(v.get("critic")), "praise": num(v.get("praise")),
+                   "hits": {k: num(n) for k, n in hits.items() if isinstance(k, str) and re.fullmatch(r"[A-Z]\d+", k)}}
+    weeks = raw.get("weeks") if isinstance(raw.get("weeks"), dict) else {}
+    return {"days": days, "weeks": {w: num(n) for w, n in weeks.items() if date(w)}}
+
+
 def everyone_html(summary, why, rules):
     """모든 사용자 절. 받지 못했으면 이유 한 줄만 둔다."""
     head = "<h2>모든 사용자</h2>"
     if summary is None:
         return head + f"<p>{html.escape(why)}</p>"
     titles = {r["id"]: r["title"] for r in rules}
-    days = summary.get("days", {})
+    summary = tidy(summary)
+    days = summary["days"]
     weeks = defaultdict(Counter)
     for d, v in days.items():
         x = datetime.date.fromisoformat(d)

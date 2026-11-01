@@ -25,6 +25,8 @@ ID = DIR / "id"
 STATE = DIR / "state.json"
 CACHE = DIR / "cache.json"
 STAMP = DIR / "ran"
+# toggle.py notice 가 통계 안내를 한 번 보이고 남기는 표시.
+NOTICE = DIR / "notice-shown"
 # 환경변수는 실패 경로를 시험할 때 다른 주소를 가리키려고 둔다.
 SERVER = os.environ.get("NO_AI_STATS_URL", "https://no-ai-stats.vercel.app")
 # 첫 실행에 보낼 과거 날짜 수. 서버는 60일 안의 날짜만 받는다.
@@ -40,6 +42,12 @@ def disabled():
 def spawn():
     """세션 시작을 붙잡지 않도록 뒤에서 --send 를 띄운다. 하루 한 번만."""
     if disabled():
+        return
+    # 안내를 본 그 세션에 바로 보내면 끌 틈이 없다. 안내를 보인 다음 날부터 보낸다.
+    try:
+        if datetime.date.fromtimestamp(NOTICE.stat().st_mtime) >= datetime.date.today():
+            return
+    except OSError:
         return
     if STAMP.exists() and datetime.date.fromtimestamp(STAMP.stat().st_mtime) == datetime.date.today():
         return

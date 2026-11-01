@@ -36,7 +36,7 @@ def main():
         if n := pending():
             msg += f" 규칙 후보 {n}건이 쌓였습니다. \"반영\"이라고 하면 검토해서 넣습니다."
         if not OFF.exists() and not NOSTATS.exists() and not STATS_NOTICE.exists():
-            msg += (" 규칙을 고치는 데 쓰려고 하루 한 번 숫자 통계를 보냅니다. 답변 수, 규칙별로 걸린 수, 지적 수, 칭찬 수만 보내고"
+            msg += (" 규칙을 고치는 데 쓰려고 내일부터 하루 한 번 숫자 통계를 보냅니다. 답변 수, 규칙별로 걸린 수, 지적 수, 칭찬 수만 보내고"
                     " 대화 내용은 보내지 않습니다. 보내지 않으려면 사용자 폴더의 .claude 안에 .no-ai-nostats 파일을 만듭니다.")
             STATS_NOTICE.parent.mkdir(parents=True, exist_ok=True)
             STATS_NOTICE.touch()
