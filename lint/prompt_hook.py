@@ -15,6 +15,7 @@
 import json
 import os
 import pathlib
+import re
 import shutil
 import stat
 import subprocess
@@ -97,6 +98,29 @@ def version(folder):
         return ""
 
 
+def often_broken(base):
+    """적용.md 의 '자주 어기는 규칙' 줄에 적힌 번호마다 규칙 첫 문장을 붙인다.
+
+    규칙 파일을 가리키기만 하면 답변 때 다시 읽지 않아 같은 규칙을 계속 어겼다(플라이휠 측정, C49).
+    문장은 규칙 파일에서 그때그때 읽어 두 곳에 적지 않는다.
+    """
+    try:
+        # 받는 중이라 반만 쓴 파일이 있어도 요청은 막지 않는다. autocrlf 로 받은 PC는 줄 끝이 \r\n 이다.
+        guide = (base / "적용.md").read_text(encoding="utf-8").replace("\r\n", "\n")
+        m = re.search(r"^자주 어기는 규칙: (.+)$", guide, re.M)
+        if not m:
+            return ""
+        text = "\n".join(f.read_text(encoding="utf-8") for f in (base / "rules").glob("*.md")).replace("\r\n", "\n")
+    except (OSError, ValueError):
+        return ""
+    out = []
+    for rid in re.findall(r"[A-Z]\d+", m[1]):
+        r = re.search(rf"^## {rid} (.+)\n\n(.+?(?:[.](?=\s|$)|$))", text, re.M)
+        if r:
+            out.append(f"{rid} {r[1]}: {r[2]}")
+    return " 답변마다 특히 지킨다. " + " / ".join(out) if out else ""
+
+
 def main():
     if "--pull" in sys.argv:
         pull()
@@ -108,7 +132,7 @@ def main():
     ver = (version(base) if base == LIVE else "") or "설치본"
     # 안내에 "한국어로 답한다"가 없을 때 영어로 답한 세션이 있었다 (D09).
     msg = (f"NO-AI 켜짐, 규칙 버전 {ver}. 사용자에게 하는 답변은 한국어로만 쓴다. 한국어로 쓰는 글과 답변은 {base / '적용.md'} 를 따른다. "
-           f"그 파일의 경로는 {base} 기준이다.")
+           f"그 파일의 경로는 {base} 기준이다." + often_broken(base))
     sys.stdout.write(json.dumps({"hookSpecificOutput": {
         "hookEventName": "UserPromptSubmit", "additionalContext": msg}}))
 

@@ -60,7 +60,8 @@ def scan(f, rules):
                 day["hits"].update({rid for _, rid, _, _ in noai_lint.run(t, "대화", rules)})
             last_ai = t
             continue
-        sort = "지적" if CRITIC.search(t) else "칭찬" if PRAISE.search(t) else ""
+        # "가독성 좋아보여?"처럼 되묻는 말은 칭찬이 아니다.
+        sort = "지적" if CRITIC.search(t) else "칭찬" if PRAISE.search(t) and "?" not in t else ""
         if sort and last_ai and korean(last_ai):
             hit = sorted({rid for _, rid, _, _ in noai_lint.run(last_ai, "대화", rules)})
             key = hashlib.sha1(f"{f}{when}{t[:80]}".encode()).hexdigest()[:12]
