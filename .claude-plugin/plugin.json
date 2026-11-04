@@ -1,7 +1,7 @@
 {
   "name": "no-ai",
   "displayName": "NO-AI",
-  "description": "한국어 글에서 AI 티를 빼는 규칙. 설치하면 켜진 상태로 시작하고 /no-ai:off 로 끈다.",
+  "description": "한국어 글에서 AI 슬롭을 제거하는 플러그인. 설치하면 켜진 상태로 시작하고 /no-ai:off 로 끈다.",
   "author": {
     "name": "yehsb123"
   }
