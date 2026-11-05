@@ -419,7 +419,8 @@ def run_eval():
     (out / "key.json").write_text(json.dumps(key), encoding="utf-8")
     # 비교할 글은 프롬프트에 넣지 않고 파일로 읽게 한다. Windows 명령 줄 길이 한도를 넘는다.
     form = (f'{out / "blind.md"} 에 요청마다 X, Y 두 글이 있다. 번호마다 더 나은 쪽을 고른다. '
-            '답은 {"01": "X", "02": "tie", ...} 형식의 JSON 하나만 쓴다. 값은 X, Y, tie 가운데 하나다.')
+            '답은 {"01": "X", "02": "tie", ...} 형식의 JSON 하나를 먼저 쓴다. 값은 X, Y, tie 가운데 하나다. '
+            '그 아래에 "01: 이유"처럼 번호마다 고른 이유를 한 줄씩 쓴다. 이유에는 두 글에서 실제로 다른 문장을 든다.')
     judges = {
         # 판정자는 Read 만 쓸 수 있어 폴더 목록을 못 본다. 폴더만 알려 준 11/1 시험은 규칙을 못 읽고 판정 없이 멈췄다.
         "A": "규칙 파일 " + ", ".join(str(f) for f in sorted((LIVE / "rules").glob("*.md")))
@@ -431,8 +432,9 @@ def run_eval():
         answer = ask(p)
         v = verdict(answer)
         (out / f"verdict-{j}.json").write_text(json.dumps(v), encoding="utf-8")
+        # 실무 판정자가 NO-AI 글을 고르지 않는 까닭을 보려고 이유가 담긴 답을 늘 남긴다.
+        (out / f"answer-{j}.txt").write_text(answer, encoding="utf-8")
         if set(v) != set(key):
-            (out / f"answer-{j}.txt").write_text(answer, encoding="utf-8")
             raise RuntimeError(f"판정자 {j} 의 답이 {len(v)}건이라 비교한 {len(key)}건과 맞지 않습니다. "
                                f"받은 답은 answer-{j}.txt 에 있습니다")
         tally[j] = Counter(key[n][w] if w in ("X", "Y") else "tie" for n, w in v.items())
