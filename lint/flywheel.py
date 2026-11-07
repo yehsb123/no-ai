@@ -21,8 +21,6 @@ import pathlib
 import re
 import subprocess
 import sys
-import urllib.error
-import urllib.request
 from collections import Counter, defaultdict
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
@@ -197,6 +195,9 @@ def table(head, body, empty):
 
 def everyone():
     """수집 서버에서 모든 사용자의 날짜별 합계를 받는다. (요약, None) 이나 (None, 못 받은 이유)."""
+    # urllib 를 불러오는 데만 0.2초 가까이 걸려, 세션을 여는 훅(--catchup)이 기다리지 않게 여기서 불러온다.
+    import urllib.error
+    import urllib.request
     try:
         key = STATS_KEY.read_text(encoding="utf-8").strip()
     except OSError:
@@ -550,6 +551,41 @@ def eval_rows():
             for line in reversed(lines[-12:])]
 
 
+CHECKED = OUT / "catchup-checked"
+# 예약 작업 NoAiFlywheel 이 돌리는 원본. 플러그인 사본에는 .git 이 없어 규칙을 넣은 날짜를 찾지 못한다.
+ORIGIN = pathlib.Path.home() / "no-ai" / "lint" / "flywheel.py"
+
+
+def catchup():
+    """밤 예약 작업을 놓쳤으면 보고서를 뒤에서 다시 만들고 바로 끝난다.
+
+    예약 작업은 로그인해 있을 때만 돌아 PC가 잠든 밤에는 건너뛴다. 세션을 여는 훅에서 부르므로
+    결과 폴더가 없는 PC(관리자 PC가 아님)는 아무것도 하지 않고, 확인은 하루 한 번만 한다.
+    """
+    if not OUT.is_dir():
+        return
+    today = datetime.date.today()
+    try:
+        if datetime.date.fromtimestamp(CHECKED.stat().st_mtime) == today:
+            return
+    except OSError:
+        pass
+    CHECKED.touch()
+    if load(STATE, {}).get("updated", "") >= shift(today.isoformat(), -1):
+        return
+    flags = {}
+    if os.name == "nt":
+        flags["creationflags"] = subprocess.DETACHED_PROCESS | subprocess.CREATE_NEW_PROCESS_GROUP
+    else:
+        flags["start_new_session"] = True
+    script = ORIGIN if ORIGIN.exists() else pathlib.Path(__file__).resolve()
+    try:
+        subprocess.Popen([sys.executable, str(script)], stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
+                         stderr=subprocess.DEVNULL, **flags)
+    except OSError:
+        CHECKED.unlink(missing_ok=True)
+
+
 def main():
     # 예약 작업은 창 없는 pythonw 로 돌아 출력 대상이 없다.
     if sys.stdout:
@@ -557,7 +593,11 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--done", action="store_true")
     ap.add_argument("--eval", action="store_true", help="정기 비교 시험을 돌린 뒤 보고서를 만든다")
+    ap.add_argument("--catchup", action="store_true", help="SessionStart 훅. 밀린 보고서를 뒤에서 다시 만든다")
     a = ap.parse_args()
+    if a.catchup:
+        catchup()
+        return
     OUT.mkdir(parents=True, exist_ok=True)
     if a.done:
         save_state(done_until=datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M"), pending=0)
