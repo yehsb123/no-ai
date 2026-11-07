@@ -300,7 +300,8 @@ th{{color:var(--sub);font-weight:500}} td.ai{{color:var(--sub);font-size:12px}}
 {table(["규칙", "제목", "지적받은 답변 수"], brows, "최근 30일 동안 지적받은 답변에서 걸린 규칙이 없습니다.")}
 <h2>정기 비교 시험</h2>
 <p>매주 같은 요청 14개를 그때의 규칙으로 다시 쓰고, NO-AI 없이 쓴 고정 글과 어느 쪽인지 가린 채 비교합니다. 규칙 판정자는 NO-AI 규칙을 읽고, 실무 판정자는 규칙 없이 실무자 눈으로 고릅니다.</p>
-{table(["날짜", "규칙 버전", "규칙 판정 NO-AI 우세", "없이 우세", "비슷함", "실무 판정 NO-AI 우세", "없이 우세", "비슷함", "자동 검사 NO-AI", "자동 검사 없이", "쓰기 실패"], eval_rows(), "아직 돌린 시험이 없습니다.")}
+<p>판정자마다 같은 글을 {RUNS}번 판정하고 번호마다 2표 이상 받은 쪽을 셉니다. 셋이 모두 다르면 비슷함입니다. 일치율은 {RUNS}번이 모두 같았던 번호의 비율(%)이고, 낮을수록 한두 건 차이는 우연일 수 있습니다. 빈 칸은 한 번만 판정하던 때의 시험입니다.</p>
+{table(["날짜", "규칙 버전", "규칙 판정 NO-AI 우세", "없이 우세", "비슷함", "실무 판정 NO-AI 우세", "없이 우세", "비슷함", "자동 검사 NO-AI", "자동 검사 없이", "쓰기 실패", "규칙 판정 일치율", "실무 판정 일치율"], eval_rows(), "아직 돌린 시험이 없습니다.")}
 {f"<p>마지막 시험이 끝나지 못했습니다: {e(state['eval_error'])}. 자세한 내용은 eval/오류.txt 에 있습니다.</p>" if state.get("eval_error") else ""}
 <h2>자주 어기는 규칙</h2>
 <p>답변 100개당 걸린 수입니다. 최근 7일과 그 전 7일을 나란히 둡니다.</p>
@@ -320,7 +321,10 @@ th{{color:var(--sub);font-weight:500}} td.ai{{color:var(--sub);font-size:12px}}
 EVAL = OUT / "eval"
 EVAL_CSV = EVAL / "결과.csv"
 EVAL_LOG = EVAL / "오류.txt"
-EVAL_COLS = ["날짜", "규칙버전", "A_noai", "A_plain", "A_tie", "B_noai", "B_plain", "B_tie", "검사_noai", "검사_plain", "실패"]
+EVAL_COLS = ["날짜", "규칙버전", "A_noai", "A_plain", "A_tie", "B_noai", "B_plain", "B_tie", "검사_noai", "검사_plain", "실패",
+             "A_일치", "B_일치"]
+# 판정자마다 같은 글을 몇 번 판정하는지. 한 번씩만 보면 14건 중 1~2건 차이가 우연인지 가릴 수 없었다.
+RUNS = 3
 LIVE = pathlib.Path.home() / ".claude" / "no-ai-live"
 
 
@@ -370,6 +374,27 @@ def verdict(text):
         v = str(v).strip().upper()
         out[str(k).strip().zfill(2)] = v if v in ("X", "Y") else "tie"
     return out
+
+
+def majority(votes):
+    """한 번호에 대한 여러 번의 판정에서 2표 이상 받은 쪽. 그런 쪽이 없으면 tie."""
+    top, n = Counter(votes).most_common(1)[0]
+    return top if n >= 2 else "tie"
+
+
+def combine(runs):
+    """같은 판정자의 판정 여러 번을 번호마다 다수결로 합친다. (최종 판정, 모든 판정이 같았던 번호의 비율 %)."""
+    final = {k: majority([v[k] for v in runs]) for k in runs[0]}
+    same = sum(1 for k in runs[0] if len({v[k] for v in runs}) == 1)
+    return final, round(same * 100 / len(final)) if final else 0
+
+
+def fill(line):
+    """칸이 생기기 전에 쓴 결과.csv 행을 지금 칸 수로 맞춘다. 실패 칸은 0, 일치율 칸은 빈 값으로 둔다."""
+    cells = line.split(",")
+    if len(cells) == EVAL_COLS.index("실패"):
+        cells.append("0")
+    return ",".join(cells + [""] * (len(EVAL_COLS) - len(cells)))
 
 
 def run_eval():
@@ -427,22 +452,34 @@ def run_eval():
              + " 을 모두 읽고, 그 규칙을 기준으로 두 글을 비교한다. 사실에 없는 내용을 지어낸 글은 진다. " + form,
         "B": "규칙 파일은 읽지 않는다. 그 글을 실제로 받아 쓰는 실무자 입장에서 더 바로 쓸 수 있는 글을 고른다. 사실에 없는 내용을 지어낸 글은 진다. " + form,
     }
-    tally = {}
-    for j, p in judges.items():
-        answer = ask(p)
-        v = verdict(answer)
-        (out / f"verdict-{j}.json").write_text(json.dumps(v), encoding="utf-8")
+    def judge(c):
+        j, n = c
+        answer = ask(judges[j])
         # 실무 판정자가 NO-AI 글을 고르지 않는 까닭을 보려고 이유가 담긴 답을 늘 남긴다.
-        (out / f"answer-{j}.txt").write_text(answer, encoding="utf-8")
-        if set(v) != set(key):
-            raise RuntimeError(f"판정자 {j} 의 답이 {len(v)}건이라 비교한 {len(key)}건과 맞지 않습니다. "
-                               f"받은 답은 answer-{j}.txt 에 있습니다")
-        tally[j] = Counter(key[n][w] if w in ("X", "Y") else "tie" for n, w in v.items())
+        (out / f"answer-{j}-{n}.txt").write_text(answer, encoding="utf-8")
+        return answer
+
+    calls = [(j, n) for j in judges for n in range(1, RUNS + 1)]
+    with concurrent.futures.ThreadPoolExecutor(RUNS) as pool:
+        answers = dict(zip(calls, pool.map(judge, calls)))
+    tally, agree = {}, {}
+    for j in judges:
+        runs = []
+        for n in range(1, RUNS + 1):
+            v = verdict(answers[(j, n)])
+            (out / f"verdict-{j}-{n}.json").write_text(json.dumps(v), encoding="utf-8")
+            if set(v) != set(key):
+                raise RuntimeError(f"판정자 {j} 의 {n}번째 답이 {len(v)}건이라 비교한 {len(key)}건과 맞지 않습니다. "
+                                   f"받은 답은 answer-{j}-{n}.txt 에 있습니다")
+            runs.append(v)
+        final, agree[j] = combine(runs)
+        (out / f"verdict-{j}.json").write_text(json.dumps(final), encoding="utf-8")
+        tally[j] = Counter(key[n][w] if w in ("X", "Y") else "tie" for n, w in final.items())
     row = [day, ver, tally["A"]["noai"], tally["A"]["plain"], tally["A"]["tie"],
-           tally["B"]["noai"], tally["B"]["plain"], tally["B"]["tie"], lint["noai"], lint["plain"], len(failed)]
+           tally["B"]["noai"], tally["B"]["plain"], tally["B"]["tie"], lint["noai"], lint["plain"], len(failed),
+           agree["A"], agree["B"]]
     lines = EVAL_CSV.read_text(encoding="utf-8").splitlines()[1:] if EVAL_CSV.exists() else []
-    # 실패 칸이 생기기 전 행은 실패 0 으로 채운다.
-    lines = [x if x.count(",") == len(EVAL_COLS) - 1 else x + ",0" for x in lines]
+    lines = [fill(x) for x in lines]
     lines.append(",".join(map(str, row)))
     EVAL_CSV.write_text(",".join(EVAL_COLS) + "\n" + "\n".join(lines) + "\n", encoding="utf-8")
     return row
@@ -459,7 +496,7 @@ def eval_rows():
         lines = EVAL_CSV.read_text(encoding="utf-8").splitlines()[1:]
     except OSError:
         return []
-    return ["<tr>" + "".join(f"<td>{html.escape(v)}</td>" for v in line.split(",")) + "</tr>"
+    return ["<tr>" + "".join(f"<td>{html.escape(v)}</td>" for v in fill(line).split(",")) + "</tr>"
             for line in reversed(lines[-12:])]
 
 
