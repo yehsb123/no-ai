@@ -47,6 +47,10 @@ CRITIC = re.compile(r"슬롭|별론|별로(?=[야얍다네임인같에]|\s|$)|�
 PRAISE = re.compile(r"좋아|좋네|좋다|굿|최고|오진다|오지네|오지는|맘에 ?들|마음에 ?들|훌륭")
 
 
+# 규칙 사본(no-ai-live)이나 원본 저장소(no-ai)의 적용.md 와 rules/*.md. 경로 구분자는 / 로 바꿔 맞춘다.
+RULE_FILE = re.compile(r"/(?:no-ai-live|no-ai)/(?:적용\.md|rules/[^/]+\.md)$", re.I)
+
+
 def korean(t):
     hangul = len(re.findall(r"[가-힣]", t))
     return hangul >= 40 and hangul / max(len(t), 1) > 0.2
@@ -74,7 +78,45 @@ def scan(f, rules):
                           "sort": sort, "user": t[:600], "ai": last_ai[-600:], "hit": hit})
         last_ai = ""
     return {"days": {d: {"answers": v["answers"], "hits": dict(v["hits"])} for d, v in days.items()},
-            "cands": cands}
+            "cands": cands, "reads": rule_reads(f)}
+
+
+def rule_reads(f):
+    """기록 파일 하나에서 규칙 파일을 Read 도구로 읽은 날짜들.
+
+    훅이 적용.md 를 가리켜도 실제로 열어 읽었는지는 답변 글만 봐서는 모른다. talking.walk 는 도구 호출을
+    버리므로 여기서 따로 읽는다. 하위 에이전트(isSidechain)가 읽은 것은 그 세션의 답변과 무관해 세지 않는다.
+    """
+    days = set()
+    for line in open(f, encoding="utf-8", errors="ignore"):
+        # 기록 대부분은 규칙 읽기와 무관하다. JSON 을 풀기 전에 걸러야 수 GB 기록을 다시 읽어도 빨리 끝난다.
+        if '"Read"' not in line or "no-ai" not in line.lower():
+            continue
+        try:
+            d = json.loads(line)
+        except ValueError:
+            continue
+        content = (d.get("message") or {}).get("content")
+        if d.get("type") != "assistant" or d.get("isSidechain") or not isinstance(content, list):
+            continue
+        day = d.get("timestamp", "")[:10]
+        for b in content:
+            if (isinstance(b, dict) and b.get("type") == "tool_use" and b.get("name") == "Read" and day >= START
+                    and RULE_FILE.search(str((b.get("input") or {}).get("file_path", "")).replace("\\", "/"))):
+                days.add(day)
+    return sorted(days)
+
+
+def readers(files):
+    """날짜마다 (한국어 답변이 있던 세션 수, 그중 그날 규칙 파일을 읽은 세션 수). 기록 파일 하나를 세션 하나로 센다."""
+    out = defaultdict(lambda: [0, 0])
+    for v in files.values():
+        reads = set(v["reads"])
+        for d, x in v["days"].items():
+            if x["answers"]:
+                out[d][0] += 1
+                out[d][1] += d in reads
+    return {d: tuple(n) for d, n in out.items()}
 
 
 def basis(rules, *modules):
@@ -233,7 +275,7 @@ def everyone_html(summary, why, rules):
             + table(["규칙", "제목", "100개당", "걸린 답변 수"], top, "최근 28일 동안 받은 답변이 없습니다."))
 
 
-def report(days, cands, state, rules, allusers=""):
+def report(days, cands, state, rules, reads, allusers=""):
     titles = {r["id"]: r["title"] for r in rules}
     checked = {r["id"] for r in rules if r["checks"]}
     today = datetime.date.today().isoformat()
@@ -271,6 +313,11 @@ def report(days, cands, state, rules, allusers=""):
         if nb and na:
             erows.append(f"<tr><td>{rid}</td><td>{e(titles.get(rid, ''))}</td><td>{day}</td><td>{b}</td><td>{a}</td></tr>")
 
+    rrows = []
+    for d in sorted((d for d in reads if d >= shift(today, -13)), reverse=True):
+        talked, read = reads[d]
+        rrows.append(f"<tr><td>{d}</td><td>{talked}</td><td>{read}</td><td>{round(read * 100 / talked)}%</td></tr>")
+
     weekly = defaultdict(Counter)
     for c in cands:
         d = datetime.date.fromisoformat(c["when"][:10])
@@ -306,6 +353,9 @@ th{{color:var(--sub);font-weight:500}} td.ai{{color:var(--sub);font-size:12px}}
 <h2>자주 어기는 규칙</h2>
 <p>답변 100개당 걸린 수입니다. 최근 7일과 그 전 7일을 나란히 둡니다.</p>
 {table(["규칙", "제목", "최근 7일", "그 전 7일"], vrows, "최근 7일 동안 걸린 규칙이 없습니다.")}
+<h2>규칙 파일을 읽은 세션</h2>
+<p>최근 14일 동안 날마다 한국어 답변을 한 세션 가운데, 그날 적용.md 나 rules 폴더의 규칙 파일을 한 번이라도 직접 열어 읽은 세션의 비율입니다. 날짜는 기록의 시각(UTC) 기준입니다.</p>
+{table(["날짜", "한국어 답변 세션", "규칙을 읽은 세션", "비율"], rrows, "최근 14일 동안 한국어 답변이 없습니다.")}
 <h2>새 규칙의 효과</h2>
 <p>최근 60일 안에 넣은 규칙 가운데 자동 검사가 있는 것만 잽니다. 넣기 전 14일과 넣은 뒤 14일의 답변 100개당 걸린 수입니다.</p>
 {table(["규칙", "제목", "넣은 날", "넣기 전", "넣은 뒤"], erows, "아직 잴 만큼 기록이 쌓인 규칙이 없습니다.")}
@@ -547,7 +597,7 @@ def main():
             days[d]["answers"] += x["answers"]
             days[d]["hits"].update(x["hits"])
         cands += v["cands"]
-    pending = report(days, cands, load(STATE, {}), rules, everyone_html(*everyone(), rules))
+    pending = report(days, cands, load(STATE, {}), rules, readers(files), everyone_html(*everyone(), rules))
     save_state(pending=pending, updated=datetime.date.today().isoformat())
     print(REPORT)
     print(f"반영 대기 후보 {pending}건, 답변 {sum(v['answers'] for v in days.values())}개 검사")
