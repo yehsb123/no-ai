@@ -1,0 +1,29 @@
+name: test
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    env:
+      # Windows 러너의 기본 콘솔 인코딩(cp1252)으로는 한글 출력이 깨지거나 print 가 실패한다.
+      PYTHONIOENCODING: utf-8
+      PYTHONUTF8: "1"
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: noai_lint --test
+        run: python lint/noai_lint.py --test
+      - name: unittest
+        run: python -m unittest discover -s tests -v
