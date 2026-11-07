@@ -1,10 +1,14 @@
+import contextlib
+import io
 import json
 import os
 import pathlib
 import subprocess
 import sys
 import tempfile
+import time
 import unittest
+from unittest import mock
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent / "lint"))
 import flywheel  # noqa: E402
@@ -126,6 +130,94 @@ class CatchupWithoutAdminFolderTest(unittest.TestCase):
         r = subprocess.run([sys.executable, str(SCRIPT), "--catchup"], env=env, capture_output=True, timeout=30)
         self.assertEqual(r.returncode, 0, r.stderr.decode("utf-8", "ignore"))
         self.assertEqual(list(pathlib.Path(d.name).rglob("*")), [])
+
+
+class LockTest(unittest.TestCase):
+    """관리자 폴더를 임시 폴더로 바꿔 끼우고 부른다. 수집 서버와 claude 는 부르지 않는다."""
+
+    def setUp(self):
+        d = tempfile.TemporaryDirectory()
+        self.addCleanup(d.cleanup)
+        home = pathlib.Path(d.name)
+        self.out = home / "no-ai-flywheel"
+        self.out.mkdir()
+        (home / "projects").mkdir()
+        self.lock = self.out / "running.lock"
+        self.addCleanup(mock.patch.stopall)
+        for name, value in {"OUT": self.out, "CACHE": self.out / "cache.json", "STATE": self.out / "state.json",
+                            "REPORT": self.out / "보고서.html", "CHECKED": self.out / "catchup-checked",
+                            "EVAL": self.out / "eval", "EVAL_CSV": self.out / "eval" / "결과.csv",
+                            "EVAL_LOG": self.out / "eval" / "오류.txt", "LOCK": self.lock}.items():
+            mock.patch.object(flywheel, name, value).start()
+        mock.patch.object(flywheel.talking, "PROJECTS", home / "projects").start()
+        mock.patch.object(flywheel, "everyone", return_value=(None, "시험")).start()
+        self.run_eval = mock.patch.object(flywheel, "run_eval", return_value=[]).start()
+
+    def main(self, *args):
+        out = io.TextIOWrapper(io.BytesIO(), encoding="utf-8")
+        with mock.patch.object(sys, "argv", ["flywheel.py", *args]), contextlib.redirect_stdout(out):
+            flywheel.main()
+
+    def hold(self, hours_ago=0):
+        self.lock.write_text("1", encoding="utf-8")
+        t = time.time() - hours_ago * 3600
+        os.utime(self.lock, (t, t))
+
+    def catchup(self):
+        """밀린 보고서가 있는 상태로 catchup 을 부르고, 띄우려던 프로세스 수를 돌려준다."""
+        (self.out / "state.json").write_text('{"updated": "2026-01-01"}', encoding="utf-8")
+        with mock.patch.object(flywheel.subprocess, "Popen") as popen:
+            flywheel.catchup()
+        return popen.call_count
+
+    def test_full_run_skips_while_locked(self):
+        self.hold()
+        self.main()
+        self.assertFalse((self.out / "보고서.html").exists())
+        self.assertTrue(self.lock.exists())
+
+    def test_eval_run_skips_while_locked(self):
+        self.hold()
+        self.main("--eval")
+        self.run_eval.assert_not_called()
+        self.assertFalse((self.out / "보고서.html").exists())
+
+    def test_full_run_holds_lock_and_releases_it(self):
+        seen = []
+        real = flywheel.report
+
+        def spy(*a, **k):
+            seen.append(self.lock.exists())
+            return real(*a, **k)
+
+        with mock.patch.object(flywheel, "report", side_effect=spy):
+            self.main()
+        self.assertEqual(seen, [True])
+        self.assertTrue((self.out / "보고서.html").exists())
+        self.assertFalse(self.lock.exists())
+
+    def test_lock_removed_after_exception(self):
+        with mock.patch.object(flywheel, "report", side_effect=RuntimeError("보고서 실패")):
+            with self.assertRaises(RuntimeError):
+                self.main()
+        self.assertFalse(self.lock.exists())
+
+    def test_stale_lock_is_ignored(self):
+        self.hold(hours_ago=3)
+        self.main()
+        self.assertTrue((self.out / "보고서.html").exists())
+        self.assertFalse(self.lock.exists())
+
+    def test_catchup_does_not_spawn_while_locked(self):
+        self.hold()
+        self.assertEqual(self.catchup(), 0)
+
+    def test_catchup_spawns_when_not_locked(self):
+        self.assertEqual(self.catchup(), 1)
+
+    def test_catchup_ignores_stale_lock(self):
+        self.hold(hours_ago=3)
+        self.assertEqual(self.catchup(), 1)
 
 
 if __name__ == "__main__":

@@ -21,6 +21,7 @@ import pathlib
 import re
 import subprocess
 import sys
+import time
 from collections import Counter, defaultdict
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
@@ -553,6 +554,38 @@ def eval_rows():
 
 
 CHECKED = OUT / "catchup-checked"
+# 보고서를 만드는 전체 실행이 돌고 있다는 표시. 예약 작업이 깨어날 때 늦게 시작한 사이 세션을 열면
+# catchup 이 전체 실행을 하나 더 띄워 둘이 cache.json 과 보고서를 함께 덮었다.
+LOCK = OUT / "running.lock"
+# 이보다 오래된 잠금은 전원이 꺼지거나 강제로 끝난 실행이 남긴 것으로 본다.
+# 비교 시험은 claude 호출마다 15분 제한이 있어 글 쓰기 4차례와 판정 2차례를 다 채워도 90분이다.
+STALE = 2 * 3600
+
+
+def locked():
+    """다른 전체 실행이 잠금을 쥐고 있으면 True."""
+    try:
+        return time.time() - LOCK.stat().st_mtime < STALE
+    except OSError:
+        return False
+
+
+def take_lock():
+    """잠금을 잡으면 True. 다른 실행이 쥐고 있으면 False. 오래된 잠금은 지우고 다시 잡는다."""
+    for _ in range(2):
+        try:
+            fd = os.open(LOCK, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+        except FileExistsError:
+            if locked():
+                return False
+            LOCK.unlink(missing_ok=True)
+            continue
+        os.write(fd, str(os.getpid()).encode())
+        os.close(fd)
+        return True
+    return False
+
+
 # 예약 작업 NoAiFlywheel 이 돌리는 원본. 플러그인 사본에는 .git 이 없어 규칙을 넣은 날짜를 찾지 못한다.
 ORIGIN = pathlib.Path.home() / "no-ai" / "lint" / "flywheel.py"
 
@@ -563,7 +596,7 @@ def catchup():
     예약 작업은 로그인해 있을 때만 돌아 PC가 잠든 밤에는 건너뛴다. 세션을 여는 훅에서 부르므로
     결과 폴더가 없는 PC(관리자 PC가 아님)는 아무것도 하지 않고, 확인은 하루 한 번만 한다.
     """
-    if not OUT.is_dir():
+    if not OUT.is_dir() or locked():
         return
     today = datetime.date.today()
     try:
@@ -604,7 +637,18 @@ def main():
         save_state(done_until=datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M"), pending=0)
         print("쌓인 후보를 반영한 것으로 표시했습니다.")
         return
-    if a.eval:
+    if not take_lock():
+        print(f"다른 실행이 보고서를 만들고 있어 끝냅니다: {LOCK}")
+        return
+    try:
+        build(a.eval)
+    finally:
+        LOCK.unlink(missing_ok=True)
+
+
+def build(evaluate):
+    """비교 시험(evaluate 일 때), 기록 검사, 보고서 만들기. 잠금을 쥔 채로 부른다."""
+    if evaluate:
         # 시험이 실패해도 그날 보고서는 만든다. 창 없이 돌아 오류를 볼 곳이 파일뿐이다.
         try:
             row = run_eval()
