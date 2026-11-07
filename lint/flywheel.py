@@ -45,8 +45,9 @@ CRITIC = re.compile(r"슬롭|별론|별로(?=[야얍다네임인같에]|\s|$)|�
 PRAISE = re.compile(r"좋아|좋네|좋다|굿|최고|오진다|오지네|오지는|맘에 ?들|마음에 ?들|훌륭")
 
 
-# 규칙 사본(no-ai-live)이나 원본 저장소(no-ai)의 적용.md 와 rules/*.md. 경로 구분자는 / 로 바꿔 맞춘다.
-RULE_FILE = re.compile(r"/(?:no-ai-live|no-ai)/(?:적용\.md|rules/[^/]+\.md)$", re.I)
+# 규칙 사본(no-ai-live), 원본 저장소(no-ai), 플러그인 설치본의 적용.md 와 rules/*.md. 경로 구분자는 / 로 바꿔 맞춘다.
+# no-ai-live 를 받지 못한 PC 에서는 prompt_hook 이 설치본(plugins/cache/no-ai/no-ai/<판>)의 적용.md 를 가리킨다.
+RULE_FILE = re.compile(r"/(?:no-ai-live|no-ai|plugins/cache/no-ai/no-ai/[^/]+)/(?:적용\.md|rules/[^/]+\.md)$", re.I)
 
 
 def korean(t):
