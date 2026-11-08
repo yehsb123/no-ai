@@ -18,8 +18,10 @@ Claude Code가 쓰는 한국어 글에서 AI 슬롭을 제거하는 플러그인
 
 규칙은 실제로 쓴 글이 받은 지적을 모아 만들었습니다. 모든 글에 쓰는 공통 규칙과 글 종류별 규칙으로 나뉩니다.
 
-- 공통: em dash, 가운뎃점, 굵게 쓰기, 뜸들이기와 예고, 번역투 단어, 문어체 동사, AI 상투구, 말 순서 뒤집기, 문단 길이, 개수 표기, 과장, 기호와 이모지
+- 공통: em dash, 가운뎃점, 굵게 쓰기, 뜸들이기와 예고, 번역투 단어, 문어체 동사, AI 상투구, 챗봇 인사와 맺음말, 말 순서 뒤집기, 문단 길이, 개수 표기, 과장, 기호와 이모지
 - 글 종류별: 사내 문서, 고객에게 가는 글, 메신저, 개발 글(커밋, PR), 화면 문구, 화면 배치, 교안, 에세이, 대화 답변, 발표 자료, 지원서, 홍보 글, 번역
+
+공개된 AI 말투 목록도 참고했습니다: [Wikipedia: Signs of AI writing](https://en.wikipedia.org/wiki/Wikipedia:Signs_of_AI_writing), [blader/humanizer](https://github.com/blader/humanizer), [epoko77-ai/im-not-ai](https://github.com/epoko77-ai/im-not-ai), [mitmirsein/clear-korean-writer](https://github.com/mitmirsein/clear-korean-writer), [한국어 AI 글쓰기 상투 패턴 gist](https://gist.github.com/woonjangahn/3ad4d8fe1804aed2e7cafc9493ec566f). 이 목록 가운데 업무 글에 맞는 패턴만 한국어 규칙으로 옮겼고, 대화 기록에 돌려 정상 문장이 걸리는 검사식은 범위를 좁혔습니다.
 
 켜져 있으면 요청마다 Claude에게 규칙 파일을 따르라는 안내가 붙습니다. 공통 규칙은 첫 문장을 안내에 함께 넣고, 자주 어기는 규칙은 따로 강조합니다. 정해진 표현으로 찾을 수 있는 규칙은 검사 도구가 다 쓴 글에서 다시 찾아냅니다.
 
