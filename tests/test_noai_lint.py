@@ -181,6 +181,10 @@ class ChecksTest(unittest.TestCase):
         self.assertNotIn("C26", hit_ids("예, 아니요로 답해 주세요."))
         self.assertNotIn("C26", hit_ids("그것은 내 책이 아니오.", "에세이"))
 
+    def test_c08_catches_make_a_difference(self):
+        self.assertIn("C08", hit_ids("작은 설정 하나가 큰 차이를 만듭니다."))
+        self.assertNotIn("C08", hit_ids("설정에 따라 결과가 달라집니다."))
+
     def test_d04_catches_bold_only_line(self):
         self.assertIn("D04", hit_ids("**지금 상태**\n배포가 끝났습니다.", "대화"))
         self.assertNotIn("D04", hit_ids("**지금 상태**는 배포 완료입니다.", "대화"))
