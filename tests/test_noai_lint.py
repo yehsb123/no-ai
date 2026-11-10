@@ -172,6 +172,15 @@ class ChecksTest(unittest.TestCase):
         self.assertIn("C09", hit_ids("새 대안을 찾고 있었던 것입니다."))
         self.assertNotIn("C09", hit_ids("응답 속도가 개선된다고 봅니다."))
 
+    def test_c30_catches_gak_with_mada(self):
+        self.assertIn("C30", hit_ids("각 단계마다 로그를 남깁니다."))
+        self.assertNotIn("C30", hit_ids("각 팀이 일주일마다 보고합니다."))
+
+    def test_c26_catches_anio_answer_word(self):
+        self.assertIn("C26", hit_ids("예, 아니오로 답해 주세요."))
+        self.assertNotIn("C26", hit_ids("예, 아니요로 답해 주세요."))
+        self.assertNotIn("C26", hit_ids("그것은 내 책이 아니오.", "에세이"))
+
     def test_d04_catches_bold_only_line(self):
         self.assertIn("D04", hit_ids("**지금 상태**\n배포가 끝났습니다.", "대화"))
         self.assertNotIn("D04", hit_ids("**지금 상태**는 배포 완료입니다.", "대화"))
