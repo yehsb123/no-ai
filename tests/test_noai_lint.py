@@ -167,6 +167,25 @@ class ChecksTest(unittest.TestCase):
     def test_c52_catches_inverted_tail(self):
         self.assertIn("C52", hit_ids("작업이 다 끝났습니다. 그것도 하루 만에."))
 
+    def test_c09_catches_guess_ending(self):
+        self.assertIn("C09", hit_ids("응답 속도가 개선될 것으로 보입니다."))
+        self.assertIn("C09", hit_ids("새 대안을 찾고 있었던 것입니다."))
+        self.assertNotIn("C09", hit_ids("응답 속도가 개선된다고 봅니다."))
+
+    def test_d04_catches_bold_only_line(self):
+        self.assertIn("D04", hit_ids("**지금 상태**\n배포가 끝났습니다.", "대화"))
+        self.assertNotIn("D04", hit_ids("**지금 상태**는 배포 완료입니다.", "대화"))
+
+    def test_d04_bold_label_list_needs_three_lines_in_a_row(self):
+        two = "- **성능:** 빨라졌습니다.\n- **비용:** 줄었습니다."
+        three = two + "\n- **안정성:** 오류가 없습니다."
+        broken = two + "\n\n- **안정성:** 오류가 없습니다."
+        self.assertNotIn("D04", hit_ids(two, "대화"))
+        self.assertNotIn("D04", hit_ids(broken, "대화"))
+        hits = noai_lint.run(three, "대화", noai_lint.load_rules())
+        self.assertIn((1, "D04", "답변의 겉치레", "굵은 라벨 목록 3줄"), hits)
+        self.assertNotIn("D04", hit_ids(three, "공통"))
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -150,7 +150,27 @@ def sentence_count(p):
     return len(re.findall(r"[.!?](?=\s|$)", p))
 
 
+LABEL_ITEM = re.compile(r"^\s*([-*]|\d+\.)\s+\*\*[^*]{1,25}(\*\*\s*[:：]|[:：]\*\*)")
+
+
+def label_runs(lines):
+    """굵은 라벨("- **성능:** ...")로 시작하는 목록 줄이 3줄 이상 붙어 있는 곳.
+
+    한두 줄은 사람도 쓰지만 3줄부터는 문장을 라벨 칸에 나눠 담은 양식이 된다.
+    """
+    hits, start, run = [], None, 0
+    for n, line in lines + [(None, "")]:
+        if LABEL_ITEM.search(line):
+            start, run = (n if run == 0 else start), run + 1
+            continue
+        if run >= 3:
+            hits.append((start, "굵은 라벨 목록 %d줄" % run))
+        run = 0
+    return hits
+
+
 BUILTIN = {
+    "굵은라벨목록": label_runs,
     "굵게": lambda lines: [(n, "굵게 %d번" % c) for n, p in paragraphs(lines)
                           if (c := len(re.findall(r"\*\*[^*]+\*\*", p))) >= 2],
     "문단길이": lambda lines: [(n, "%d문장" % c) for n, p in paragraphs(lines)
