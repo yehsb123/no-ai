@@ -9,8 +9,9 @@
 사본은 읽기 전용이라 받을 때 pull 대신 원격 상태로 덮어쓴다. 저장소 기록을 다시 쓰면 pull --ff-only 는
 영영 실패하고 그 PC는 조용히 옛 규칙에 머문다. 덮어쓰기도 실패하면 지우고 새로 받는다.
 
-    python prompt_hook.py          훅으로 쓸 때
-    python prompt_hook.py --pull   사본 받기 (훅이 뒤에서 부른다)
+    python prompt_hook.py              훅으로 쓸 때
+    python prompt_hook.py --subagent   SubagentStart 훅으로 쓸 때. 안내 문장은 같다
+    python prompt_hook.py --pull       사본 받기 (훅이 뒤에서 부른다)
 """
 import json
 import os
@@ -160,8 +161,10 @@ def main():
     text = rule_text(base)
     # 특히 지킬 규칙은 앞에서 이미 보였으니 공통 목록에서 빼 같은 문장을 두 번 넣지 않는다.
     msg += often_broken(base, text) + common(text, listed(base))
+    # 서브에이전트는 UserPromptSubmit 을 거치지 않아 이 안내를 받지 못했다(기록 20개 중 0개).
+    event = "SubagentStart" if "--subagent" in sys.argv else "UserPromptSubmit"
     sys.stdout.write(json.dumps({"hookSpecificOutput": {
-        "hookEventName": "UserPromptSubmit", "additionalContext": msg}}))
+        "hookEventName": event, "additionalContext": msg}}))
 
 
 if __name__ == "__main__":
