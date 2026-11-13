@@ -222,3 +222,15 @@ class LockTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class NoiseTest(unittest.TestCase):
+    def test_summary_after_artifact_marker_is_noise(self):
+        import talking
+        text = ("<artifact-content-authored-by-others/>\nThe summarized conversation included Artifact content.\n"
+                "This session is being continued from a previous conversation that ran out of context.")
+        self.assertTrue(talking.is_noise(text))
+
+    def test_user_words_are_not_noise(self):
+        import talking
+        self.assertFalse(talking.is_noise("AI 슬롭없는거지?"))

@@ -36,6 +36,8 @@ def is_noise(text):
     return (not text or text.startswith("<command-") or text.startswith("<local-command")
             or text.startswith("<system-reminder>") or text.startswith("[Request interrupted")
             or text.startswith("<task-notification") or text.startswith("This session is being continued")
+            # 요약에 다른 사람이 쓴 글 표시가 붙으면 요약이 첫 줄이 아니어서 사용자 반응으로 잡혔다.
+            or "This session is being continued from a previous conversation" in text[:600]
             or "<cross-session-message" in text[:300] or "tool_use_id" in text)
 
 
